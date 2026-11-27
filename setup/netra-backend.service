@@ -1,0 +1,23 @@
+# NETRA backend production. Pasang: sudo cp setup/netra-backend.service /etc/systemd/system/
+# Root wajib: netdriver mengelola netns, bridge, nftables, dan dnsmasq.
+# Jangan jalan bersamaan dengan backend dev di ~/netra-backend (tabel nftables netra dan port 8000 sama).
+[Unit]
+Description=NETRA backend (FastAPI + netdriver)
+Wants=network-online.target
+After=network-online.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/netra/backend
+ExecStart=/opt/netra/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+# SIGINT agar uvicorn menjalankan shutdown lifespan (loop monitor dibatalkan rapi).
+# dnsmasq dan /healthz ikut berhenti bersama service, reconcile membangunnya ulang saat start.
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
