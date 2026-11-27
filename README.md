@@ -55,6 +55,22 @@ sudo faults/fault.sh <1-6> fix      # kembalikan ke kondisi bersih
 
 Saat pengujian 30 percobaan, perbaikan dilakukan NETRA (manual atau AI). `fix` hanya untuk mereset lab.
 
+## Evaluasi lewat API (`faults/eval.py`)
+
+Untuk 30 percobaan resmi terhadap backend NETRA (bukan lab bash). Resource uji dibuat Netra-backend (`KEEP=1 bash scripts/try_workload.sh`), nama netns dan chain dicari otomatis lewat API.
+
+```bash
+python3 faults/eval.py --selftest                                   # cek mandiri tanpa jaringan
+sudo -v
+python3 faults/eval.py --mode manual --scenarios 1-6 --repeat 5     # 30 percobaan resmi (drift)
+python3 faults/eval.py --mode manual --scenarios 7-9 --repeat 5     # tambahan: salah konfigurasi
+```
+
+- Butuh env `T1`, `T2` (token client1, client2) dan backend jalan dengan `NETDRIVER_MODE=real`.
+- Setiap percobaan: pastikan sehat, break, tunggu insiden, buat rencana, approve otomatis, ukur `approved_at` sampai `finished_at`, tunggu sehat lagi.
+- Hasil per percobaan ke CSV (default `/tmp/netra-eval-<mode>-<waktu>.csv`) dan ringkasan (target 90% pulih < 120 detik).
+- Evaluasi berhenti kalau keadaan tidak sesuai harapan, agar kerusakan tidak menumpuk.
+
 ## Jebakan yang sudah ditemukan
 
 1. **Dua dnsmasq bentrok di 127.0.0.1:53.** Tanpa `--except-interface=lo`, dnsmasq kedua gagal start dan `set -e` menghentikan skrip sebelum nftables terpasang.
