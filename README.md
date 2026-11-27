@@ -62,6 +62,27 @@ Saat pengujian 30 percobaan, perbaikan dilakukan NETRA (manual atau AI). `fix` h
 3. **`kill` tidak langsung menghentikan proses.** Tunggu dengan `kill -0` sebelum mengecek.
 4. Ping ke gateway dan query DNS tidak melewati NACL karena masuk ke hook `input`, bukan `forward`.
 
+## Deploy production backend (`setup/netra-backend.service`)
+
+Backend production di `/opt/netra/backend` (branch `main`), dijalankan systemd sebagai root, hanya listen `127.0.0.1:8000`. Nginx (`nginx/netra.conf`) meneruskan `/api/` ke sana.
+
+```bash
+sudo mkdir -p /opt/netra && sudo chown "$USER":"$USER" /opt/netra
+git clone -b main git@github.com:NETRA-UGM/Netra-backend.git /opt/netra/backend
+cd /opt/netra/backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env && chmod 600 .env    # isi: DATABASE_URL ke DB netra, NETDRIVER_MODE=real, JWT_SECRET baru, QWEN_API_KEY
+.venv/bin/python scripts/seed_users.py    # akun client1 dan client2 production (jalankan sendirian)
+sudo cp ~/netra-infra/setup/netra-backend.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now netra-backend
+journalctl -u netra-backend -n 30 --no-pager
+curl -s http://127.0.0.1/api/v1/health    # {"status":"ok","env":"production","netdriver":"real"}
+```
+
+- Update: `cd /opt/netra/backend && git pull --ff-only && .venv/bin/pip install -r requirements.txt && sudo systemctl restart netra-backend`.
+- **Dev dan production tidak boleh jalan bersamaan** (tabel nftables `netra` dan port 8000 sama). Sebelum uji dev: `sudo systemctl stop netra-backend`. Sebelum production menyala lagi: bersihkan resource dev (`CLEAN=1 bash scripts/try_workload.sh` di repo dev).
+- Stop service ikut menghentikan dnsmasq dan `/healthz` workload. Saat start, `reconcile` membangun ulang semua dari DB.
+- Funnel hanya saat demo: `sudo tailscale funnel --bg 80`, matikan dengan `sudo tailscale funnel reset`.
+
 ## Status
 
 Diuji di VM srv-cloud (Ubuntu 24.04, nftables 1.0.9, dnsmasq 2.91): lab 8/8 PASS, fault 6/6 skenario.
