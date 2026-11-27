@@ -120,13 +120,23 @@ def discover(t1):
                            db_ip=db["ip"], rt=rt["id"], nacl=nacl["id"])
 
 
-def healthy(e):
-    """Cek aktif dari workload web: internet, /healthz db (antarsubnet), dan DNS."""
+def checks(e):
+    """Cek aktif dari workload web: {nama: lolos}. Internet, /healthz db (antarsubnet), dan DNS."""
     def x(*a):
         return sudo("ip", "netns", "exec", e.ns, *a, check=False)
-    return (x("ping", "-c1", "-W2", "1.1.1.1").returncode == 0
-            and x("curl", "-fs", "--max-time", "3", f"http://{e.db_ip}/healthz").returncode == 0
-            and bool(_IP.search(x("dig", "+short", "+time=2", "+tries=1", "example.com").stdout)))
+    return {"ping 1.1.1.1": x("ping", "-c1", "-W2", "1.1.1.1").returncode == 0,
+            f"curl {e.db_ip}/healthz": x("curl", "-fs", "--max-time", "3", f"http://{e.db_ip}/healthz").returncode == 0,
+            "dig example.com": bool(_IP.search(x("dig", "+short", "+time=2", "+tries=1", "example.com").stdout))}
+
+
+def healthy(e):
+    return all(checks(e).values())
+
+
+def why_unhealthy(e, t1, t2):
+    incs = [f"{i['category']}/{i['resource_type']} ({i['status']}): {i['symptom']}" for i in open_incidents(t1, t2)]
+    bad = [k for k, v in checks(e).items() if not v]
+    return "; ".join([*(f"insiden {s}" for s in incs), *(f"cek gagal: {b}" for b in bad)]) or "-"
 
 
 def open_incidents(t1, t2):
@@ -198,7 +208,7 @@ def trial(n, k, mode, e, t1, t2):
                pulih_s="", sehat_setelah="", berhasil=False, catatan="")
     prepare(n, e, t1)
     if not wait(lambda: not open_incidents(t1, t2) and healthy(e)):
-        raise Stop("keadaan belum sehat sebelum percobaan (ada insiden open atau cek aktif gagal)")
+        raise Stop(f"keadaan belum sehat sebelum percobaan: {why_unhealthy(e, t1, t2)}")
     t0 = time.monotonic()
     break_(n, e, t1)
     inc = wait(lambda: next((i for i in ok("GET", "/incidents?status=open", t1)
