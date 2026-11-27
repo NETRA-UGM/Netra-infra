@@ -220,9 +220,10 @@ def trial(n, k, mode, e, t1, t2):
     plan, done = remediate(inc["id"], mode, t1)
     if isinstance(plan, dict) and plan.get("plan"):
         row["aksi"] = "+".join(str(s.get("action")) for s in plan["plan"])
-    if done is None:
-        row["status"] = plan.get("status") if isinstance(plan, dict) else "error"
-        row["catatan"] = str(plan.get("detail") or plan.get("diagnosis") or "")[:200] if isinstance(plan, dict) else str(plan)
+    if done is None:  # rencana ditolak (invalid) atau backend membalas error (502 Qwen gagal, 503 key kosong)
+        info = plan if isinstance(plan, dict) else {"detail": plan}
+        row["status"] = info.get("status") or "error"
+        row["catatan"] = str(info.get("detail") or info.get("diagnosis") or "")[:200]
     else:
         row["status"] = done["status"]
         row["pulih_s"] = round((iso(done["finished_at"]) - iso(done["approved_at"])).total_seconds(), 1)
@@ -285,6 +286,7 @@ def selftest():
     s = summary(rows)
     assert "9/10 (90%)" in s and "TERCAPAI" in s and "Skenario 2" in s, s
     assert "BELUM" in summary(rows[:1] + rows[-1:])
+    assert f"{str(None):<9}" == "None     "  # baris cetak tidak boleh gagal walau status kosong
     print("selftest OK")
 
 
@@ -319,7 +321,7 @@ def main():
                     rows.append(row)
                     w.writerow(row)
                     f.flush()
-                    print(f"[{row['no']:2}] skenario {n} #{k}: {row['status']:<9} aksi={row['aksi'] or '-'} "
+                    print(f"[{row['no']:2}] skenario {n} #{k}: {str(row['status']):<9} aksi={row['aksi'] or '-'} "
                           f"deteksi={row['deteksi_s']}s pulih={row['pulih_s']}s sehat={row['sehat_setelah']} "
                           f"{'OK' if row['berhasil'] else 'GAGAL'} {row['catatan']}")
         except (Stop, KeyboardInterrupt) as ex:
