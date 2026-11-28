@@ -80,7 +80,7 @@ python3 faults/eval.py --mode manual --scenarios 7-9 --repeat 5     # tambahan: 
 
 ## Deploy production backend (`setup/netra-backend.service`)
 
-Backend production di `/opt/netra/backend` (branch `main`), dijalankan systemd sebagai root, hanya listen `127.0.0.1:8000`. Nginx (`nginx/netra.conf`) meneruskan `/api/` ke sana.
+Backend production di `/opt/netra/backend` (branch `main`), dijalankan systemd sebagai root, hanya listen `127.0.0.1:8000`. Nginx (`nginx/netra.conf`) meneruskan `/api/v1/`, `/api/docs`, dan `/api/openapi.json` ke sana. Path lain, termasuk `/api/auth/*` dan `/api/console/*` milik frontend, ke Next.js `127.0.0.1:3000`.
 
 ```bash
 sudo mkdir -p /opt/netra && sudo chown "$USER":"$USER" /opt/netra
